@@ -1,0 +1,85 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: poddistributors.versprei.versprei.io
+spec:
+  group: versprei.versprei.io
+  names:
+    kind: PodDistributor
+    listKind: PodDistributorList
+    plural: poddistributors
+    singular: poddistributor
+  scope: Namespaced
+  versions:
+  - name: v1beta1
+    schema:
+      openAPIV3Schema:
+        description: PodDistributor is the Schema for the poddistributors API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: PodDistributorSpec defines the desired state of PodDistributor
+            properties:
+              distribution:
+                description: Distribution specifies the node and % of pods according
+                  which pod distribution should happen
+                items:
+                  properties:
+                    nodeLabel:
+                      type: object
+                      additionalProperties:
+                        type: string
+                    weight:
+                      description: Percentage of pods needs to be schedule, max is
+                        100
+                      format: int32
+                      type: integer
+                  required:
+                  - nodeLabel
+                  - weight
+                  type: object
+                type: array
+              target:
+                description: Target specifies the deployment target
+                properties:
+                  apiVersion:
+                    description: Api version of deployment
+                    type: string
+                  kind:
+                    description: Deployment
+                    type: string
+                  name:
+                    description: Name of the deployment
+                    type: string
+                required:
+                - name
+                type: object
+            required:
+            - distribution
+            - target
+            type: object
+          status:
+            description: PodDistributorStatus defines the observed state of PodDistributor
+            properties:
+              scaleTargetKind:
+                type: string
+              status:
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

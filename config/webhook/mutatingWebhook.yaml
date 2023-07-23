@@ -1,0 +1,25 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: versprei-webhook-service
+webhooks:
+  - name: versprei.default.com
+    clientConfig:  
+      caBundle: Cg==  
+      service:  
+        name: versprei-webhook-service    
+        path: /mutate  
+        port: 8443  
+        namespace: "default"
+    rules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE"]
+        resources: ["pods"]
+    failurePolicy: Ignore
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: default
+    sideEffects: None
+    admissionReviewVersions: ["v1beta1", "v1"]
+    timeoutSeconds: 2

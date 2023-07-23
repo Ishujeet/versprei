@@ -1,19 +1,14 @@
+---
+kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
 metadata:
-  labels:
-    app.kubernetes.io/name: clusterrolebinding
-    app.kubernetes.io/instance: manager-rolebinding
-    app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: versprei
-    app.kubernetes.io/part-of: versprei
-    app.kubernetes.io/managed-by: kustomize
-  name: manager-rolebinding
+  name: spread-webhook-service-role-binding
+  namespace: default
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: manager-role
+  kind: Role
+  name: spread-webhook-service-role
 subjects:
-- kind: ServiceAccount
-  name: controller-manager
-  namespace: system
+  - kind: ServiceAccount
+    name: spread-webhook-service-sa
+    namespace: default

@@ -1,94 +1,179 @@
-# versprei
-// TODO(user): Add simple overview of use/purpose
+<!-- TABLE OF CONTENTS -->
+##### Table of Contents
+  <ol>
+    <li>
+      <a href="#about-the-project">About The Project</a>
+      <ul>
+        <li><a href="#built-with">Built With</a></li>
+      </ul>
+    </li>
+    <li>
+      <a href="#getting-started">Getting Started</a>
+      <ul>
+        <li><a href="#prerequisites">Prerequisites</a></li>
+        <li><a href="#installation">Installation</a></li>
+      </ul>
+    </li>
+    <li><a href="#usage">Usage</a></li>
+  </ol>
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
 
+
+<!-- ABOUT THE PROJECT -->
+## About The Project
+
+Pod spreader webhook is mutating webhook service which helps in scheduling pods on different nodes based on the node labels in Kubernetes.
+
+### Built With
+
+* [Custom Resource Definition][crds-url]
+* [Mutating Webhook Configuration][mwc-url]
+* [Python][python-url]
+* [FastApi][fastapi-url]
+* [K8s Python Library][k8s-python-url]
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+
+
+<!-- GETTING STARTED -->
 ## Getting Started
-You’ll need a Kubernetes cluster to run against. You can use [KIND](https://sigs.k8s.io/kind) to get a local cluster for testing, or run against a remote cluster.
-**Note:** Your controller will automatically use the current context in your kubeconfig file (i.e. whatever cluster `kubectl cluster-info` shows).
 
-### Running on the cluster
-1. Install Instances of Custom Resources:
+### Prerequisites
 
-```sh
-kubectl apply -f config/samples/
+* Ensure that MutatingAdmissionWebhook and ValidatingAdmissionWebhook admission controllers are enabled. [Here][ac-url] is a recommended set of admission controllers to enable in general.
+* Ensure that the admissionregistration.k8s.io/v1 API is enabled.
+* Ensure that [kubectl][kubectl-url] is installed
+
+### Installation
+
+1. Clone the repo
+   ```sh
+   git clone git@bitbucket.org:c4hybris/pod-spread-webhook.git
+   ```
+2. Install in k8s    
+   ```sh
+   make install
+   ```
+3. Test on a sample app
+   ```sh
+   make test
+   ```
+4. Unistall everything
+   ```sh
+   make clean
+   ```
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+
+
+<!-- USAGE EXAMPLES -->
+## Usage
+
+Below PodDistributor object will specify wieght distribution on the nodes based on node labels and also specify the target deployment.
+```yaml
+---
+apiVersion: versprei.versprei.io/v1beta1
+kind: PodDistributor
+metadata:
+  name: nginx-deployment
+  namespace: default
+spec:
+  distribution:
+  - nodeLabel:
+      type: default
+    weight: 80
+  - nodeLabel:
+      type: spot
+    weight: 20
+  target:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: nginx-deployment
 ```
 
-2. Build and push your image to the location specified by `IMG`:
-
-```sh
-make docker-build docker-push IMG=<some-registry>/versprei:tag
+Here we reading that object and applying the patch on nodes once we recieve the request from admission controller.
+```python
+def get_pod_distribution(deployment_name):
+    api_instance = client.CustomObjectsApi()   
+    
+    # Get distribution spec for deployment
+    try:
+        api_response = api_instance.get_namespaced_custom_object(
+        group=PodDistributorGroup, version=PodDistributorVersion, namespace="default", plural=PodDistributorPlural, name=deployment_name)
+        pod_distribution = []
+        for d in api_response['spec']['distribution']:
+            for k, v in d['nodeLabel'].items():
+                nodeLabel = f"{k}={v}"
+            pod_distribution.append({"nodeLabel": nodeLabel, 'weight': d['weight']})
+        return pod_distribution
+    except ApiException as e:
+        if e.status == 404:
+            return "Not Found"
+        if e.status == 403:
+            return "Not Found"
+        logger.exception("Exception when calling CustomObjectsApi->get_namespaced_custom_object: %s\n" % e)
+        return "Not Found"
 ```
+```python
+@app.post('/mutate')
+async def mutate_pod(req: Request):
+    admission_review = await req.json()
 
-3. Deploy the controller to the cluster with the image specified by `IMG`:
+    # Ignore if request is not for pod creation
+    if admission_review['request']['kind']['kind'] != 'Pod':
+        logger.info("This admission webhook only handles pod creation requests")
+        return JSONResponse(content={'apiVersion': admission_review['apiVersion'], 'kind': 'AdmissionReview', 'response': {
+            'allowed': True, 'uid': admission_review['request']['uid']}})
 
-```sh
-make deploy IMG=<some-registry>/versprei:tag
+    # Ignore pods created by Jobs
+    if 'job-name' in admission_review['request']['object']['metadata']['labels']:
+        logger.info("Ignoring pods created by Job")
+        return JSONResponse(content={'apiVersion': admission_review['apiVersion'], 'kind': 'AdmissionReview', 'response': {
+            'allowed': True, 'uid': admission_review['request']['uid']}})
+
+    deployment_name = admission_review['request']["object"]["metadata"]["labels"]["app"]
+    logger.info(f"Got the request for deployment {deployment_name}")
+    # logger.info(admission_review)
+    # Get node selector patch fro a pod spec on the distribution provided
+    # in poddistributor object for the deployment
+    node_selector = get_node_selector_patch(deployment_name)
+
+    # Ignore pods which doesn't have pod_distribution set
+    if node_selector is None:
+        logger.info(f"Pod distribution not specified for deployment {deployment_name}, ignoring it.")
+        return JSONResponse(content={'apiVersion': admission_review['apiVersion'], 'kind': 'AdmissionReview', 'response': {
+            'allowed': True, 'uid': admission_review['request']['uid']}})
+    else:
+        metadata = admission_review['request']['object']['metadata']
+        if 'annotations' not in metadata:
+            logger.info("Adding an annotations field in pod spec metadata")
+            metadata['annotations'] = {}
+
+        # Add a patch indicating that the pod was mutated by this admission webhook
+        metadata['annotations']['mutated-by'] = 'spread-webhook-service'
+        mutation_patch = {"op": "replace", "path": "/metadata", "value": metadata}
+
+        # Add a patch for nodeselector
+        node_selector_patch = {"op": "replace", "path": "/spec/nodeSelector", "value": node_selector}
+        
+        # Encode the mutated pod object and return it in the response
+        patch = [mutation_patch, node_selector_patch]
+        encoded_patch = base64.b64encode(
+            json.dumps(patch).encode('utf-8')).decode('utf-8')
+        response_body = {'apiVersion': admission_review['apiVersion'], 'kind': 'AdmissionReview', 'response': {
+            'allowed': True, 'uid': admission_review['request']['uid'], 'patchType': 'JSONPatch', 'patch': encoded_patch}}
+        return JSONResponse(content=response_body)
 ```
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-### Uninstall CRDs
-To delete the CRDs from the cluster:
-
-```sh
-make uninstall
-```
-
-### Undeploy controller
-UnDeploy the controller from the cluster:
-
-```sh
-make undeploy
-```
-
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
-
-### How it works
-This project aims to follow the Kubernetes [Operator pattern](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/).
-
-It uses [Controllers](https://kubernetes.io/docs/concepts/architecture/controller/),
-which provide a reconcile function responsible for synchronizing resources until the desired state is reached on the cluster.
-
-### Test It Out
-1. Install the CRDs into the cluster:
-
-```sh
-make install
-```
-
-2. Run your controller (this will run in the foreground, so switch to a new terminal if you want to leave it running):
-
-```sh
-make run
-```
-
-**NOTE:** You can also run this in one step by running: `make install run`
-
-### Modifying the API definitions
-If you are editing the API definitions, generate the manifests such as CRs or CRDs using:
-
-```sh
-make manifests
-```
-
-**NOTE:** Run `make --help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
-
-## License
-
-Copyright 2023.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
+<!-- MARKDOWN LINKS & IMAGES -->
+<!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
+[crds-url]: https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/
+[mwc-url]: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#mutatingwebhookconfiguration-v1-admissionregistration-k8s-io
+[python-url]: https://www.python.org/
+[fastapi-url]: https://fastapi.tiangolo.com/lo/
+[k8s-python-url]: https://github.com/kubernetes-client/python
+[kubectl-url]: https://kubernetes.io/docs/tasks/tools/#kubectl
+[ac-url]: https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/#is-there-a-recommended-set-of-admission-controllers-to-use

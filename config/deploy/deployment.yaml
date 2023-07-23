@@ -1,0 +1,35 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: versprei-webhook-service
+  labels:
+    app: versprei-webhook-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: versprei-webhook-service
+  template:
+    metadata:
+      labels:
+        app: versprei-webhook-service
+    spec:
+      containers:
+      - name: versprei-webhook-service
+        image: versprei:latest
+        ports:
+        - containerPort: 8443
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: versprei-webhook-service
+  labels:
+    app: versprei-webhook-service
+spec:
+  ports:
+  - port: 8443
+    targetPort: 8443
+  selector:
+    app: versprei-webhook-service

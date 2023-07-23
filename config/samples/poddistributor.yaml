@@ -1,0 +1,18 @@
+---
+apiVersion: versprei.versprei.io/v1beta1
+kind: PodDistributor
+metadata:
+  name: nginx-deployment
+  namespace: default
+spec:
+  distribution:
+  - nodeLabel:
+      type: default
+    weight: 80
+  - nodeLabel:
+      type: spot
+    weight: 20
+  target:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: nginx-deployment

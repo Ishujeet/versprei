@@ -48,8 +48,8 @@ The GitHub project is an innovative and efficient solution for distributing pods
 
 ### Prerequisites
 
-* Ensure that MutatingAdmissionWebhook and ValidatingAdmissionWebhook admission controllers are enabled. [Here][ac-url] is a recommended set of admission controllers to enable in general.
-* Ensure that the admissionregistration.k8s.io/v1 API is enabled.
+* You’ll need a Kubernetes cluster to run against. You can use KIND to get a local cluster for testing, or run against a remote cluster. Note: Your controller will automatically use the current context in your kubeconfig file (i.e. whatever cluster kubectl cluster-info shows).
+
 * Ensure that [kubectl][kubectl-url] is installed
 
 ### Installation

@@ -1,6 +1,6 @@
 import logging
 import os
-from .kube_utils import get_pod_distribution, get_pods_for_deployment
+from .kube_utils import get_pod_distribution_with_labels, get_pods_for_deployment
 logging.basicConfig(
     format="%(asctime)s %(levelname)s: %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ def get_node_selector_patch(deployment_name):
     if os.getenv('ENV') == "dev":
         distribution_spec = DistributionSpec
     else:
-        distribution_spec = get_pod_distribution(deployment_name=deployment_name)
+        distribution_spec = get_pod_distribution_with_labels(deployment_name=deployment_name)
 
     # Distribution spec not found then Ignore patching
     if os.getenv('ENV') != "dev" and distribution_spec == "Not Found":

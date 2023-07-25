@@ -12,6 +12,36 @@ PodDistributorGroup = "versprei.versprei.io"
 PodDistributorVersion = "v1beta1"
 PodDistributorPlural = "poddistributors"
 
+def get_pod_distribution_with_labels(deployment_name):
+    api_instance = client.CustomObjectsApi()
+    label_selector=f"app={deployment_name}"
+    try:
+        api_response = api_instance.list_namespaced_custom_object(
+            group=PodDistributorGroup,
+            version=PodDistributorVersion,  # Replace with the appropriate version of your custom object
+            namespace="default",
+            plural=PodDistributorPlural,
+            label_selector=label_selector,
+        )
+        if len(api_response.get('items', [])) > 0:
+            for d in api_response.get('items', []):
+                if d.get("target").get("name") == deployment_name:
+                    pod_distribution = []
+                    for spec in d:
+                        for k, v in spec['nodeLabel'].items():
+                            nodeLabel = f"{k}={v}"
+                        pod_distribution.append({"nodeLabel": nodeLabel, 'weight': spec['weight']})
+                    return pod_distribution
+            return "Not Found"
+        else:
+            return "Not Found"
+    except ApiException as e:
+        if e.status == 404:
+            return "Not Found"
+        if e.status == 403:
+            return "Not Found"
+        logger.exception("Exception when calling CustomObjectsApi->get_namespaced_custom_object: %s\n" % e)
+        return "Not Found"
 
 def get_pod_distribution(deployment_name):
     api_instance = client.CustomObjectsApi()

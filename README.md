@@ -1,6 +1,6 @@
 # Versprei
 
-![](https://github.com/ishujeet/versprei/logo.gif)
+![https://github.com/ishujeet/versprei/logo.gif](https://github.com/Ishujeet/versprei/blob/master/logo.png)
 
 
 <!-- TABLE OF CONTENTS -->

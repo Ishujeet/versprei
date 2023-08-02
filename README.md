@@ -81,7 +81,7 @@ The GitHub project is an innovative and efficient solution for distributing pods
    ```
 
 #### Manual Install
-1. CLone the repo
+1. Clone the repo
    ```sh
    git clone git@bitbucket.org:c4hybris/pod-spread-webhook.git
    ```
@@ -109,6 +109,10 @@ The GitHub project is an innovative and efficient solution for distributing pods
 6. Install webhook service which get the request from mutating webhook integration.
    ```sh
    kubectl apply -f config/deploy
+   ```
+6. To test on sample app run below, it will install a sample deployment with a PodDistributor object.
+   ```sh
+   kubectl apply -f config/samples
    ```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>

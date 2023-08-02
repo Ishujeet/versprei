@@ -59,15 +59,23 @@ The GitHub project is an innovative and efficient solution for distributing pods
    ```sh
    git clone git@bitbucket.org:c4hybris/pod-spread-webhook.git
    ```
-2. Build the image locally and deploy to local cluster with required CRD's, Mutating Webhook, and Webhook Service/App.
+2. Create certs required by app
+   ```sh
+   make create-cert
+   ```
+3. Apply Mutating Webhook Configuration
+   ```sh
+   make webhook-apply
+   ```
+4. Build the image locally and deploy to local cluster with required CRD's, Mutating Webhook, and Webhook Service/App.
    ```sh
    make install
    ```
-3. Deploy a test app in cluster by name of nginx-deployment with required PodDistributor object which specify weight distribution for pods placement.
+5. Deploy a test app in cluster by name of nginx-deployment with required PodDistributor object which specify weight distribution for pods placement.
    ```sh
    make test
    ```
-4. To clean/delete all the resources created using above commands.
+6. To clean/delete all the resources created using above commands.
    ```sh
    make clean
    ```
@@ -81,18 +89,24 @@ The GitHub project is an innovative and efficient solution for distributing pods
    ```sh
    kubectl apply -f config/crd/
    ```
-3. Install Mutating Webhook Configuration
+3. Create the required certs which will be used by app for tls as all the request for webhook works over https
+   ```sh
+   chmod +x certs/create-cert.sh
+   cd certs
+   ./create-cert.sh
+   ```
+4. Install Mutating Webhook Configuration
    ```sh
    kubectl apply -f config/webhook/
    ```
    #### Note:
    Mutating Webhook needs a CA Bundle to communicate to webhook services, as all the communication happens in k8s is over https. Here I am using a self signed certifcate which you can find under certs folder.
 
-4. Apply RBAC, these will be used by webhook service to get poddistributor and deployment specs.
+5. Apply RBAC, these will be used by webhook service to get poddistributor and deployment specs.
    ```sh
    kubectl apply -f config/rbac/
    ```
-5. Install webhook service which get the request from mutating webhook integration.
+6. Install webhook service which get the request from mutating webhook integration.
    ```sh
    kubectl apply -f config/deploy
    ```

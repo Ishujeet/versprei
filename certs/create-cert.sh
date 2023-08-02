@@ -1,38 +1,32 @@
 #! /bin/sh
 set -uo errexit
 
-APP=${1:=spread-webhook-service}
-NAMESPACE=${2:=default}
+APP=${1:-spread-webhook-service}
+NAMESPACE=${2:-default}
 CSR_NAME="${APP}.${NAMESPACE}.svc"
 
 HAS_WGET="$(type "wget" &> /dev/null && echo true || echo false)"
 HAS_CFSSL="$(type "CFSSL" &> /dev/null && echo true || echo false)"
 HAS_BREW="$(type "brew" &> /dev/null && echo true || echo false)"
 
-# initOS discovers the operating system for this system.
-initOS() {
-  OS=$(echo `uname`|tr '[:upper:]' '[:lower:]')
+OS=$(echo `uname`|tr '[:upper:]' '[:lower:]')
 
-  case "$OS" in
-    # Minimalist GNU for Windows
-    mingw*|cygwin*) OS='windows';;
-  esac
-}
-
-
-if [ "${HAS_CURL}" != "true" ]; then
-  echo "Curl is required"
-  exit 1
+if [ "${OS}" != "darwin" ]; then
+  if [ "${HAS_WGET}" != "true" ]; then
+    echo "wget is required"
+    exit 1
+  fi
+else
+  if [ "${HAS_BREW}" != "true" ]; then
+    echo "HomeBrew is required"
+    exit 1
+  fi
 fi
 
 if [ "${OS}" == "darwin" ]; then
-  if [ "${HAS_BREW}" == "true" ]; then
-    if [ "${HAS_CFSSL}" != "true" ]; then
-      echo "Installing cfssl...."
-      brew install cfssl
-    fi
-  else
-    echo "HomeBrew is required"
+  if [ "${HAS_CFSSL}" != "true" ]; then
+    echo "Installing cfssl...."
+    brew install cfssl
   fi
 else
   if [ "${HAS_CFSSL}" != "true" ]; then
@@ -46,7 +40,7 @@ else
   fi
 fi
 
-echo "Creating CA config json.........."
+echo "Creating CA config json..........\n"
 
 cat > ca-config.json <<EOF
 {
@@ -63,7 +57,7 @@ cat > ca-config.json <<EOF
   }
 }
 EOF
-echo "Creating CA CSR json.........."
+echo "Creating CA CSR json..........\n"
 cat > ca-csr.json <<EOF
 {
   "CN": "Kubernetes",
@@ -82,11 +76,11 @@ cat > ca-csr.json <<EOF
   ]
 }
 EOF
-echo "Generating CA cert.........."
+echo "Generating CA cert..........\n"
 cfssl gencert -initca ca-csr.json | cfssljson -bare ca
 
 
-echo "Creating SERVER CSR json.........."
+echo "Creating SERVER CSR json..........\n"
 cat > server-csr.json <<EOF
 {
   "CN": "admission",
@@ -105,7 +99,7 @@ cat > server-csr.json <<EOF
   ]
 }
 EOF
-echo "Generating SERVER cert and key.........."
+echo "Generating SERVER cert and key..........\n"
 cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -hostname=${CSR_NAME} -profile=server server-csr.json | cfssljson -bare server
 
 
@@ -113,5 +107,5 @@ echo "Converting .pem key & cert to .key and .crt.........."
 openssl x509 -in server.pem -out server.crt
 openssl pkey -in server-key.pem -out server-key.key
 
-echo "Replace CA bundle in MutatingWebhookConfiguration with below one...."
+echo "Replace CA bundle in MutatingWebhookConfiguration with below one....\n"
 cat ca.pem | base64 | tr -d '\n'

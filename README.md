@@ -11,8 +11,9 @@
 * [K8s Python Library][k8s-python-url]
 
 ### Description
+Versprei, a helpful GitHub project designed to simplify pod scheduling in Kubernetes clusters. Versprei offers an efficient solution for distributing pods across node pools based on specific node labels and user-defined percentages.
 
-The GitHub project is an innovative and efficient solution for distributing pods in Kubernetes clusters based on specific node labels and user-defined percentages. Leveraging the power of Custom Resource Definitions (CRDs), a Mutating Webhook, and FastAPI, this project streamlines the process of optimizing pod placement to enhance resource utilization and workload distribution.
+Using Custom Resource Definitions (CRDs), a Mutating Webhook, and FastAPI, Versprei optimizes pod placement for better resource utilization and workload distribution. It seamlessly integrates into Kubernetes, allowing you to effortlessly manage your applications and scale as needed.
 
 ### Features
 * **Custom Resource Definitions (CRDs):** The project utilizes Kubernetes CRDs to define custom resources that allow users to specify their pod distribution preferences.

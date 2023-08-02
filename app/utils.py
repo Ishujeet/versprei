@@ -5,16 +5,6 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s: %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-DistributionSpec = [
-    {
-        "nodeLabel": "type=spot",
-        "weight": 50
-    },
-    {
-        "nodeLabel": "type=default",
-        "weight": 50
-    }
-]
 
 def get_percentage_of_running_pods_by_node_selector(list_of_running_pods, nodelabels, spread_node_label):
     total_running_pods = 0
@@ -36,12 +26,8 @@ def get_percentage_of_running_pods_by_node_selector(list_of_running_pods, nodela
 
 
 def get_node_selector_patch(deployment_name):
-    
-    # Setting default for testing
-    if os.getenv('ENV') == "dev":
-        distribution_spec = DistributionSpec
-    else:
-        distribution_spec = get_pod_distribution_with_labels(deployment_name=deployment_name)
+   
+    distribution_spec = get_pod_distribution_with_labels(deployment_name=deployment_name)
 
     # Distribution spec not found then Ignore patching
     if os.getenv('ENV') != "dev" and distribution_spec == "Not Found":

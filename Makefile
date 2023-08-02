@@ -41,8 +41,13 @@ rbac-apply:
 crds-apply:
     kubectl apply -f config/crd/ -n $(KUBE_NAMESPACE)
 
+create-cert:
+    chmod +x certs/create-cert.sh
+    cd certs
+   ./create-cert.sh
+
 # Apply the Mutating Webhook Configuration
-webhook-apply:
+webhook-apply: create-cert.sh
 	kubectl apply -f config/webhook/ -n $(KUBE_NAMESPACE)
 
 # Apply the Kubernetes deployment
@@ -54,7 +59,7 @@ kube-delete:
     kubectl delete -f config/deploy/ -n $(KUBE_NAMESPACE)
 
 # Build the Docker image, push it to the registry, and apply RBAC, CRDs, Mutating Webhook, and the Kubernetes deployment
-install: docker-build docker-push rbac-apply crds-apply kube-apply webhook-apply 
+install: docker-build docker-push rbac-apply crds-apply kube-apply
 
 # Redeploy the webhook service after making changes
 redeploy: docker-build docker-push
@@ -73,4 +78,4 @@ clean:
 	kubectl delete -f config/webhook/ -n $(KUBE_NAMESPACE) --ignore-not-found=true
     docker rmi $(IMG) --force
 
-.PHONY: docker-build docker-push rbac-apply crds-apply kube-apply webhook-apply kube-delete build-and-deploy clean
+.PHONY: docker-build docker-push rbac-apply crds-apply kube-apply webhook-apply kube-delete build-and-deploy clean create-cert

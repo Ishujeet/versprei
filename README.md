@@ -1,33 +1,6 @@
 # Versprei
 
-![https://github.com/ishujeet/versprei/logo.gif](https://github.com/Ishujeet/versprei/blob/master/logo.png)
-
-
-<!-- TABLE OF CONTENTS -->
-##### Table of Contents
-  <ol>
-    <li>
-      <a href="#about-the-project">About The Project</a>
-      <ul>
-        <li><a href="#built-with">Built With</a></li>
-      </ul>
-    </li>
-    <li>
-      <a href="#getting-started">Getting Started</a>
-      <ul>
-        <li><a href="#prerequisites">Prerequisites</a></li>
-        <li><a href="#installation">Installation</a></li>
-      </ul>
-    </li>
-    <li><a href="#usage">Usage</a></li>
-  </ol>
-
-
-
-<!-- ABOUT THE PROJECT -->
-## About The Project
-
-Pod spreader webhook is mutating webhook service which helps in scheduling pods on different nodes based on the node labels in Kubernetes.
+![Logo](https://github.com/Ishujeet/versprei/blob/master/logo.png)
 
 ### Built With
 
@@ -36,6 +9,35 @@ Pod spreader webhook is mutating webhook service which helps in scheduling pods 
 * [Python][python-url]
 * [FastApi][fastapi-url]
 * [K8s Python Library][k8s-python-url]
+
+### Description
+
+The GitHub project is an innovative and efficient solution for distributing pods in Kubernetes clusters based on specific node labels and user-defined percentages. Leveraging the power of Custom Resource Definitions (CRDs), a Mutating Webhook, and FastAPI, this project streamlines the process of optimizing pod placement to enhance resource utilization and workload distribution.
+
+### Features
+* **Custom Resource Definitions (CRDs):** The project utilizes Kubernetes CRDs to define custom resources that allow users to specify their pod distribution preferences.
+
+* **Mutating Webhook:** With the help of a Mutating Webhook, the project dynamically intercepts pod creations and mutations ensuring automatic adjustments to adhere to the specified distribution criteria.
+
+* **FastAPI App:** A FastAPI web application serves as the control plane for users to configure pod distribution rules conveniently and monitor their application's pod allocation.
+
+### How It Works
+1. **Define Distribution Rules:** Users can define their desired node labels and the corresponding percentages for pod distribution through the CRD configuration.
+
+2. **Pod Creation or Mutation:** Whenever a pod is created or updated, the Mutating Webhook is triggered, intercepting the request.
+
+3. **Distribution Logic:** The FastAPI app processes the request, intelligently assigning the pod to an appropriate node based on the defined distribution rules and percentages.
+
+4. **Efficient Resource Utilization:** By distributing pods across nodes strategically, the project optimizes resource utilization and ensures workload distribution for enhanced performance.
+
+### Benefits
+* **Automated Pod Distribution:** The project eliminates the need for manual pod assignment, reducing the operational burden and minimizing human errors.
+
+* **Flexible Configuration:** Users have the flexibility to set custom distribution rules based on their specific application requirements.
+
+* **Dynamic Adjustments:** As the cluster evolves and the node conditions change, the Mutating Webhook automatically adjusts pod placement, ensuring ongoing optimization.
+
+* **Resource Optimization**: By efficiently utilizing node resources, the project helps prevent resource imbalances and ensures better cluster performance.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -46,37 +48,75 @@ Pod spreader webhook is mutating webhook service which helps in scheduling pods 
 
 ### Prerequisites
 
-* Ensure that MutatingAdmissionWebhook and ValidatingAdmissionWebhook admission controllers are enabled. [Here][ac-url] is a recommended set of admission controllers to enable in general.
-* Ensure that the admissionregistration.k8s.io/v1 API is enabled.
+* You’ll need a Kubernetes cluster to run against. You can use KIND to get a local cluster for testing, or run against a remote cluster. Note: Your controller will automatically use the current context in your kubeconfig file (i.e. whatever cluster kubectl cluster-info shows).
+
 * Ensure that [kubectl][kubectl-url] is installed
 
 ### Installation
 
+#### Easy Install
 1. Clone the repo
    ```sh
    git clone git@bitbucket.org:c4hybris/pod-spread-webhook.git
    ```
-2. Install in k8s    
+2. Create certs required by app
+   ```sh
+   make create-cert
+   ```
+3. Apply Mutating Webhook Configuration
+   ```sh
+   make webhook-apply
+   ```
+4. Build the image locally and deploy to local cluster with required CRD's, Mutating Webhook, and Webhook Service/App.
    ```sh
    make install
    ```
-3. Test on a sample app
+5. Deploy a test app in cluster by name of nginx-deployment with required PodDistributor object which specify weight distribution for pods placement.
    ```sh
    make test
    ```
-4. Unistall everything
+6. To clean/delete all the resources created using above commands.
    ```sh
    make clean
    ```
 
+#### Manual Install
+1. CLone the repo
+   ```sh
+   git clone git@bitbucket.org:c4hybris/pod-spread-webhook.git
+   ```
+2. Install CRD's
+   ```sh
+   kubectl apply -f config/crd/
+   ```
+3. Create the required certs which will be used by app for tls as all the request for webhook works over https
+   ```sh
+   chmod +x certs/create-cert.sh
+   cd certs
+   ./create-cert.sh
+   ```
+4. Install Mutating Webhook Configuration
+   ```sh
+   kubectl apply -f config/webhook/
+   ```
+   #### Note:
+   Mutating Webhook needs a CA Bundle to communicate to webhook services, as all the communication happens in k8s is over https. Here I am using a self signed certifcate which you can find under certs folder.
+
+5. Apply RBAC, these will be used by webhook service to get poddistributor and deployment specs.
+   ```sh
+   kubectl apply -f config/rbac/
+   ```
+6. Install webhook service which get the request from mutating webhook integration.
+   ```sh
+   kubectl apply -f config/deploy
+   ```
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-
-
 <!-- USAGE EXAMPLES -->
-## Usage
+### Usage
 
-Below PodDistributor object will specify wieght distribution on the nodes based on node labels and also specify the target deployment.
+Below PodDistributor object will specify weight distribution of the pods for specific deployment based on node labels.
 ```yaml
 ---
 apiVersion: versprei.versprei.io/v1beta1
@@ -96,80 +136,6 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: nginx-deployment
-```
-
-Here we reading that object and applying the patch on nodes once we recieve the request from admission controller.
-```python
-def get_pod_distribution(deployment_name):
-    api_instance = client.CustomObjectsApi()   
-    
-    # Get distribution spec for deployment
-    try:
-        api_response = api_instance.get_namespaced_custom_object(
-        group=PodDistributorGroup, version=PodDistributorVersion, namespace="default", plural=PodDistributorPlural, name=deployment_name)
-        pod_distribution = []
-        for d in api_response['spec']['distribution']:
-            for k, v in d['nodeLabel'].items():
-                nodeLabel = f"{k}={v}"
-            pod_distribution.append({"nodeLabel": nodeLabel, 'weight': d['weight']})
-        return pod_distribution
-    except ApiException as e:
-        if e.status == 404:
-            return "Not Found"
-        if e.status == 403:
-            return "Not Found"
-        logger.exception("Exception when calling CustomObjectsApi->get_namespaced_custom_object: %s\n" % e)
-        return "Not Found"
-```
-```python
-@app.post('/mutate')
-async def mutate_pod(req: Request):
-    admission_review = await req.json()
-
-    # Ignore if request is not for pod creation
-    if admission_review['request']['kind']['kind'] != 'Pod':
-        logger.info("This admission webhook only handles pod creation requests")
-        return JSONResponse(content={'apiVersion': admission_review['apiVersion'], 'kind': 'AdmissionReview', 'response': {
-            'allowed': True, 'uid': admission_review['request']['uid']}})
-
-    # Ignore pods created by Jobs
-    if 'job-name' in admission_review['request']['object']['metadata']['labels']:
-        logger.info("Ignoring pods created by Job")
-        return JSONResponse(content={'apiVersion': admission_review['apiVersion'], 'kind': 'AdmissionReview', 'response': {
-            'allowed': True, 'uid': admission_review['request']['uid']}})
-
-    deployment_name = admission_review['request']["object"]["metadata"]["labels"]["app"]
-    logger.info(f"Got the request for deployment {deployment_name}")
-    # logger.info(admission_review)
-    # Get node selector patch fro a pod spec on the distribution provided
-    # in poddistributor object for the deployment
-    node_selector = get_node_selector_patch(deployment_name)
-
-    # Ignore pods which doesn't have pod_distribution set
-    if node_selector is None:
-        logger.info(f"Pod distribution not specified for deployment {deployment_name}, ignoring it.")
-        return JSONResponse(content={'apiVersion': admission_review['apiVersion'], 'kind': 'AdmissionReview', 'response': {
-            'allowed': True, 'uid': admission_review['request']['uid']}})
-    else:
-        metadata = admission_review['request']['object']['metadata']
-        if 'annotations' not in metadata:
-            logger.info("Adding an annotations field in pod spec metadata")
-            metadata['annotations'] = {}
-
-        # Add a patch indicating that the pod was mutated by this admission webhook
-        metadata['annotations']['mutated-by'] = 'spread-webhook-service'
-        mutation_patch = {"op": "replace", "path": "/metadata", "value": metadata}
-
-        # Add a patch for nodeselector
-        node_selector_patch = {"op": "replace", "path": "/spec/nodeSelector", "value": node_selector}
-        
-        # Encode the mutated pod object and return it in the response
-        patch = [mutation_patch, node_selector_patch]
-        encoded_patch = base64.b64encode(
-            json.dumps(patch).encode('utf-8')).decode('utf-8')
-        response_body = {'apiVersion': admission_review['apiVersion'], 'kind': 'AdmissionReview', 'response': {
-            'allowed': True, 'uid': admission_review['request']['uid'], 'patchType': 'JSONPatch', 'patch': encoded_patch}}
-        return JSONResponse(content=response_body)
 ```
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

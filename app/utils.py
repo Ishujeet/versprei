@@ -7,11 +7,11 @@ logger = logging.getLogger(__name__)
 
 DistributionSpec = [
     {
-        "nodeLabel": "type=spotnew",
+        "nodeLabel": "type=spot",
         "weight": 50
     },
     {
-        "nodeLabel": "type=spotnew2",
+        "nodeLabel": "type=default",
         "weight": 50
     }
 ]

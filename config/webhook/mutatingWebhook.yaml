@@ -5,7 +5,7 @@ metadata:
 webhooks:
   - name: versprei.default.com
     clientConfig:  
-      caBundle: Cg==  
+      caBundle: ${CA_BUNDLE} # get it by running create-cert.sh
       service:  
         name: versprei-webhook-service    
         path: /mutate  
